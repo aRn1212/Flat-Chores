@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flat Chores</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #14161a;
+    --muted: #6b7280;
+    --line: #e4e7eb;
+    --accent: #3b6ef5;
+    --accent-soft: #eaf0ff;
+    --shadow: 0 1px 2px rgba(16,20,30,.06), 0 8px 24px rgba(16,20,30,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --card: #171a21;
+      --ink: #e9ecf1;
+      --muted: #9aa2b1;
+      --line: #262b35;
+      --accent: #7aa2ff;
+      --accent-soft: #1c2436;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  header { margin-bottom: 24px; }
+  h1 { font-size: 28px; letter-spacing: -.02em; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+
+  .weekbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 20px 0 28px; padding: 12px 14px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow);
+  }
+  .weekbar .range { font-weight: 600; margin-right: auto; }
+  .weekbar .range small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  button {
+    font: inherit; font-size: 14px; color: var(--ink);
+    background: transparent; border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+  button[disabled] { opacity: .45; cursor: default; }
+  button[disabled]:hover { border-color: var(--line); color: var(--ink); }
+
+  @media (max-width: 460px) {
+    .weekbar { gap: 8px; }
+    .weekbar .range { flex-basis: 100%; margin-right: 0; }
+  }
+
+  /* Portrait cards: taller than they are wide, content stacked. */
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .card {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px 16px 26px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    margin: 0 0 18px; font-size: 17px; letter-spacing: -.01em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  ul.chores { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; width: 100%; }
+  ul.chores li { display: block; }
+  .emoji {
+    font-size: 46px; line-height: 1; display: block; margin-bottom: 12px;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  }
+  .chore-name { font-weight: 600; font-size: 16px; }
+  .chore-detail { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .card.off { opacity: .82; }
+  .card.off .emoji { filter: grayscale(.15); }
+  .free { color: var(--muted); font-size: 14px; font-style: italic; margin: 0; }
+
+  details.cycle { margin-top: 32px; }
+  details.cycle summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  tr.now td { background: var(--accent-soft); }
+  td.off { color: var(--muted); font-style: italic; }
+  .scroller { overflow-x: auto; }
+
+  footer { margin-top: 40px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Flat Chores</h1>
+    <p class="sub">Who cleans what this week. The list rotates every Monday.</p>
+  </header>
+
+  <div class="weekbar">
+    <div class="range">
+      <span id="week-range">&nbsp;</span>
+      <small id="week-note">&nbsp;</small>
+    </div>
+    <button id="prev" title="Previous week">&larr; Prev</button>
+    <button id="today" class="primary">This week</button>
+    <button id="next" title="Next week">Next &rarr;</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <details class="cycle">
+    <summary>See the full rotation</summary>
+    <div class="scroller"><table id="cycle-table"></table></div>
+  </details>
+
+  <footer>
+    The rota is worked out from the date, so everyone sees the same thing.
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   EDIT THIS BIT - everything else looks after itself.
+   ============================================================ */
+
+// One entry per flatmate. Add or remove names freely.
+const FLATMATES = [
+  "Aran",
+  "Ali",
+  "Antonio",
+  "Salvatore",
+  "Simone",
+  "Aurelio"
+];
+
+// One entry per chore. Add or remove chores freely.
+// More chores than people -> some people get more than one.
+// Fewer chores than people -> some people get a week off.
+const CHORES = [
+  { emoji: "🚿", name: "Bagno 1",    detail: "WC, doccia, lavandino, specchio" },
+  { emoji: "🛁", name: "Bagno 2",    detail: "WC, doccia, lavandino, specchio" },
+  { emoji: "🍳", name: "Cucina",     detail: "Piano cottura, lavello, superfici" },
+  { emoji: "🗑️", name: "Spazzatura", detail: "Portare fuori tutti i bidoni" },
+  { emoji: "🧹", name: "Corridoio",  detail: "Scopare e lavare, ingresso" }
+];
+
+// Shown to whoever has no chore that week.
+const WEEK_OFF = { emoji: "😎", text: "Week off" };
+
+// The Monday the rota starts from: [year, month 1-12, day]
+const START_MONDAY = [2026, 1, 5];
+
+/* ============================================================
+   No need to change anything below.
+   ============================================================ */
+
+const DAY = 86400000;
+const WEEK = 7 * DAY;
+const PALETTE = ["#3b6ef5", "#e0703a", "#2fa66b", "#a25fd0", "#d94f7a", "#0f9bb0", "#c9a227", "#5d6bd0"];
+
+const epoch = mondayOf(new Date(START_MONDAY[0], START_MONDAY[1] - 1, START_MONDAY[2]));
+let viewedMonday = mondayOf(new Date());
+
+function mondayOf(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const shift = (x.getDay() + 6) % 7; // Sunday(0) -> 6, Monday(1) -> 0
+  x.setDate(x.getDate() - shift);
+  return x;
+}
+
+function weekIndex(monday) {
+  return Math.round((monday - epoch) / WEEK);
+}
+
+// Chore c in week w goes to flatmate (c + w) mod n.
+function assignments(monday) {
+  const n = FLATMATES.length;
+  const w = ((weekIndex(monday) % n) + n) % n;
+  const byPerson = FLATMATES.map(() => []);
+  CHORES.forEach((chore, c) => byPerson[(c + w) % n].push(chore));
+  return byPerson;
+}
+
+function formatRange(monday) {
+  const sunday = new Date(monday.getTime() + 6 * DAY);
+  const sameMonth = monday.getMonth() === sunday.getMonth();
+  const a = monday.toLocaleDateString(undefined,
+    sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" });
+  const b = sunday.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return a + " – " + b;
+}
+
+function render() {
+  const thisMonday = mondayOf(new Date());
+  const offset = Math.round((viewedMonday - thisMonday) / WEEK);
+
+  document.getElementById("week-range").textContent = formatRange(viewedMonday);
+  document.getElementById("week-note").textContent =
+    offset === 0 ? "This week" :
+    offset === 1 ? "Next week" :
+    offset === -1 ? "Last week" :
+    offset > 0 ? "In " + offset + " weeks" : Math.abs(offset) + " weeks ago";
+  document.getElementById("today").disabled = offset === 0;
+
+  const byPerson = assignments(viewedMonday);
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  FLATMATES.forEach((name, i) => {
+    const jobs = byPerson[i];
+    const card = document.createElement("div");
+    card.className = jobs.length ? "card" : "card off";
+
+    const h2 = document.createElement("h2");
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = PALETTE[i % PALETTE.length];
+    h2.append(dot, document.createTextNode(name));
+    card.appendChild(h2);
+
+    if (jobs.length === 0) {
+      card.appendChild(emojiEl(WEEK_OFF.emoji));
+      const p = document.createElement("p");
+      p.className = "free";
+      p.textContent = WEEK_OFF.text;
+      card.appendChild(p);
+    } else {
+      const ul = document.createElement("ul");
+      ul.className = "chores";
+      jobs.forEach(job => {
+        const li = document.createElement("li");
+        if (job.emoji) li.appendChild(emojiEl(job.emoji));
+        const nm = document.createElement("div");
+        nm.className = "chore-name";
+        nm.textContent = job.name;
+        li.appendChild(nm);
+        if (job.detail) {
+          const dt = document.createElement("div");
+          dt.className = "chore-detail";
+          dt.textContent = job.detail;
+          li.appendChild(dt);
+        }
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+    }
+    grid.appendChild(card);
+  });
+
+  renderCycle(thisMonday);
+}
+
+function emojiEl(char) {
+  const el = document.createElement("span");
+  el.className = "emoji";
+  el.setAttribute("role", "img");
+  el.setAttribute("aria-hidden", "true");
+  el.textContent = char;
+  return el;
+}
+
+function renderCycle(thisMonday) {
+  const n = FLATMATES.length;
+  const table = document.getElementById("cycle-table");
+  table.innerHTML = "";
+
+  const head = table.insertRow();
+  head.appendChild(th("Week"));
+  CHORES.forEach(c => head.appendChild(th((c.emoji ? c.emoji + " " : "") + c.name)));
+  if (CHORES.length < n) head.appendChild(th(WEEK_OFF.text));
+
+  for (let k = 0; k < n; k++) {
+    const monday = new Date(viewedMonday.getTime() + k * WEEK);
+    const row = table.insertRow();
+    if (monday.getTime() === thisMonday.getTime()) row.className = "now";
+    row.insertCell().textContent = formatRange(monday);
+
+    const w = ((weekIndex(monday) % n) + n) % n;
+    const busy = new Set();
+    CHORES.forEach((_, c) => {
+      const p = (c + w) % n;
+      busy.add(p);
+      row.insertCell().textContent = FLATMATES[p];
+    });
+    if (CHORES.length < n) {
+      const cell = row.insertCell();
+      cell.className = "off";
+      cell.textContent = FLATMATES.filter((_, p) => !busy.has(p)).join(", ");
+    }
+  }
+}
+
+function th(text) {
+  const el = document.createElement("th");
+  el.textContent = text;
+  return el;
+}
+
+function step(weeks) {
+  viewedMonday = new Date(viewedMonday.getTime() + weeks * WEEK);
+  render();
+}
+
+document.getElementById("prev").addEventListener("click", () => step(-1));
+document.getElementById("next").addEventListener("click", () => step(1));
+document.getElementById("today").addEventListener("click", () => {
+  viewedMonday = mondayOf(new Date());
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
