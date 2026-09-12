@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flat Chores</title>
+<title>Turni di Pulizia</title>
 <style>
   :root {
     --bg: #f6f7f9;
@@ -64,7 +64,7 @@
     .weekbar .range { flex-basis: 100%; margin-right: 0; }
   }
 
-  /* Portrait cards: taller than they are wide, content stacked. */
+  /* Schede verticali: nome, emoji, faccenda, dettaglio impilati. */
   .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
   .card {
     display: flex; flex-direction: column; align-items: center; text-align: center;
@@ -106,8 +106,8 @@
 <div class="wrap">
 
   <header>
-    <h1>Flat Chores</h1>
-    <p class="sub">Who cleans what this week. The list rotates every Monday.</p>
+    <h1>Turni di Pulizia</h1>
+    <p class="sub">Chi pulisce cosa questa settimana. Si ruota ogni lunedì.</p>
   </header>
 
   <div class="weekbar">
@@ -115,144 +115,169 @@
       <span id="week-range">&nbsp;</span>
       <small id="week-note">&nbsp;</small>
     </div>
-    <button id="prev" title="Previous week">&larr; Prev</button>
-    <button id="today" class="primary">This week</button>
-    <button id="next" title="Next week">Next &rarr;</button>
+    <button id="prev" title="Settimana precedente">&larr; Prec.</button>
+    <button id="today" class="primary">Questa settimana</button>
+    <button id="next" title="Settimana successiva">Succ. &rarr;</button>
   </div>
 
   <div class="grid" id="grid"></div>
 
   <details class="cycle">
-    <summary>See the full rotation</summary>
+    <summary>Vedi tutta la rotazione</summary>
     <div class="scroller"><table id="cycle-table"></table></div>
   </details>
 
-  <footer>
-    The rota is worked out from the date, so everyone sees the same thing.
-  </footer>
+  <footer id="footer-note"></footer>
 
 </div>
 
 <script>
 /* ============================================================
-   EDIT THIS BIT - everything else looks after itself.
+   DA MODIFICARE QUI - al resto ci pensa la pagina da sola.
    ============================================================ */
 
-// One entry per flatmate. Add or remove names freely.
-const FLATMATES = [
-  "Aran",
-  "Ali",
-  "Antonio",
-  "Salvatore",
-  "Simone",
-  "Aurelio"
+// I due bagni. Ogni bagno gira SOLO tra le persone della sua squadra,
+// una a settimana: con tre persone per squadra, ognuno fa il bagno
+// una settimana ogni tre e mai due settimane di fila.
+const BAGNI = [
+  {
+    emoji: "🚿",
+    name: "Bagno",
+    detail: "WC, doccia, lavandino, specchio",
+    squadra: ["Aran", "Ali", "Antonio"]
+  },
+  {
+    emoji: "🚿",
+    name: "Bagno",
+    detail: "WC, doccia, lavandino, specchio",
+    squadra: ["Aurelio", "Salvatore", "Simone"]
+  }
 ];
 
-// One entry per chore. Add or remove chores freely.
-// More chores than people -> some people get more than one.
-// Fewer chores than people -> some people get a week off.
-const CHORES = [
-  { emoji: "🚿", name: "Bagno 1",    detail: "WC, doccia, lavandino, specchio" },
-  { emoji: "🛁", name: "Bagno 2",    detail: "WC, doccia, lavandino, specchio" },
+// Le altre faccende: girano tra chi in quella settimana non ha il bagno.
+const ALTRE_FACCENDE = [
   { emoji: "🍳", name: "Cucina",     detail: "Piano cottura, lavello, superfici" },
   { emoji: "🗑️", name: "Spazzatura", detail: "Portare fuori tutti i bidoni" },
   { emoji: "🧹", name: "Corridoio",  detail: "Scopare e lavare, ingresso" }
 ];
 
-// Shown to whoever has no chore that week.
-const WEEK_OFF = { emoji: "😎", text: "Week off" };
+// Cosa vede chi in quella settimana non ha niente da fare.
+const SETTIMANA_LIBERA = { emoji: "😎", text: "Settimana libera" };
 
-// The Monday the rota starts from: [year, month 1-12, day]
-const START_MONDAY = [2026, 1, 5];
+// Il lunedì da cui parte il conto: [anno, mese 1-12, giorno]
+const LUNEDI_DI_PARTENZA = [2026, 1, 5];
 
 /* ============================================================
-   No need to change anything below.
+   Da qui in giù non serve toccare niente.
    ============================================================ */
 
-const DAY = 86400000;
-const WEEK = 7 * DAY;
+const GIORNO = 86400000;
+const SETTIMANA = 7 * GIORNO;
+const LOCALE = "it-IT";
 const PALETTE = ["#3b6ef5", "#e0703a", "#2fa66b", "#a25fd0", "#d94f7a", "#0f9bb0", "#c9a227", "#5d6bd0"];
 
-const epoch = mondayOf(new Date(START_MONDAY[0], START_MONDAY[1] - 1, START_MONDAY[2]));
-let viewedMonday = mondayOf(new Date());
+// L'ordine delle schede: prima squadra, poi seconda.
+const COINQUILINI = BAGNI.flatMap(b => b.squadra);
 
-function mondayOf(d) {
+const epoca = lunediDi(new Date(LUNEDI_DI_PARTENZA[0], LUNEDI_DI_PARTENZA[1] - 1, LUNEDI_DI_PARTENZA[2]));
+let lunediMostrato = lunediDi(new Date());
+
+function mod(a, b) { return ((a % b) + b) % b; }
+
+function lunediDi(d) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const shift = (x.getDay() + 6) % 7; // Sunday(0) -> 6, Monday(1) -> 0
-  x.setDate(x.getDate() - shift);
+  const scarto = (x.getDay() + 6) % 7; // domenica(0) -> 6, lunedì(1) -> 0
+  x.setDate(x.getDate() - scarto);
   return x;
 }
 
-function weekIndex(monday) {
-  return Math.round((monday - epoch) / WEEK);
+function numeroSettimana(lunedi) {
+  return Math.round((lunedi - epoca) / SETTIMANA);
 }
 
-// Chore c in week w goes to flatmate (c + w) mod n.
-function assignments(monday) {
-  const n = FLATMATES.length;
-  const w = ((weekIndex(monday) % n) + n) % n;
-  const byPerson = FLATMATES.map(() => []);
-  CHORES.forEach((chore, c) => byPerson[(c + w) % n].push(chore));
-  return byPerson;
+// Assegna le faccende della settimana. Restituisce una lista per persona.
+function assegnazioni(lunedi) {
+  const w = numeroSettimana(lunedi);
+  const perPersona = COINQUILINI.map(() => []);
+  const occupati = new Set();
+
+  // Un bagno per squadra, a turno dentro la squadra.
+  BAGNI.forEach(bagno => {
+    const squadra = bagno.squadra;
+    if (!squadra.length) return;
+    const p = COINQUILINI.indexOf(squadra[mod(w, squadra.length)]);
+    if (p < 0) return;
+    perPersona[p].push(bagno);
+    occupati.add(p);
+  });
+
+  // Le altre faccende girano tra chi è rimasto libero.
+  const liberi = COINQUILINI.map((_, i) => i).filter(i => !occupati.has(i));
+  if (liberi.length) {
+    ALTRE_FACCENDE.forEach((faccenda, j) => {
+      perPersona[liberi[mod(j + w, liberi.length)]].push(faccenda);
+    });
+  }
+  return perPersona;
 }
 
-function formatRange(monday) {
-  const sunday = new Date(monday.getTime() + 6 * DAY);
-  const sameMonth = monday.getMonth() === sunday.getMonth();
-  const a = monday.toLocaleDateString(undefined,
-    sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" });
-  const b = sunday.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+function formattaSettimana(lunedi) {
+  const domenica = new Date(lunedi.getTime() + 6 * GIORNO);
+  const stessoMese = lunedi.getMonth() === domenica.getMonth();
+  const a = lunedi.toLocaleDateString(LOCALE,
+    stessoMese ? { day: "numeric" } : { day: "numeric", month: "short" });
+  const b = domenica.toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" });
   return a + " – " + b;
 }
 
 function render() {
-  const thisMonday = mondayOf(new Date());
-  const offset = Math.round((viewedMonday - thisMonday) / WEEK);
+  const lunediCorrente = lunediDi(new Date());
+  const scarto = Math.round((lunediMostrato - lunediCorrente) / SETTIMANA);
 
-  document.getElementById("week-range").textContent = formatRange(viewedMonday);
+  document.getElementById("week-range").textContent = formattaSettimana(lunediMostrato);
   document.getElementById("week-note").textContent =
-    offset === 0 ? "This week" :
-    offset === 1 ? "Next week" :
-    offset === -1 ? "Last week" :
-    offset > 0 ? "In " + offset + " weeks" : Math.abs(offset) + " weeks ago";
-  document.getElementById("today").disabled = offset === 0;
+    scarto === 0 ? "Questa settimana" :
+    scarto === 1 ? "Prossima settimana" :
+    scarto === -1 ? "Settimana scorsa" :
+    scarto > 0 ? "Tra " + scarto + " settimane" : Math.abs(scarto) + " settimane fa";
+  document.getElementById("today").disabled = scarto === 0;
 
-  const byPerson = assignments(viewedMonday);
+  const perPersona = assegnazioni(lunediMostrato);
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
 
-  FLATMATES.forEach((name, i) => {
-    const jobs = byPerson[i];
+  COINQUILINI.forEach((nome, i) => {
+    const compiti = perPersona[i];
     const card = document.createElement("div");
-    card.className = jobs.length ? "card" : "card off";
+    card.className = compiti.length ? "card" : "card off";
 
     const h2 = document.createElement("h2");
-    const dot = document.createElement("span");
-    dot.className = "dot";
-    dot.style.background = PALETTE[i % PALETTE.length];
-    h2.append(dot, document.createTextNode(name));
+    const pallino = document.createElement("span");
+    pallino.className = "dot";
+    pallino.style.background = PALETTE[i % PALETTE.length];
+    h2.append(pallino, document.createTextNode(nome));
     card.appendChild(h2);
 
-    if (jobs.length === 0) {
-      card.appendChild(emojiEl(WEEK_OFF.emoji));
+    if (compiti.length === 0) {
+      card.appendChild(emojiEl(SETTIMANA_LIBERA.emoji));
       const p = document.createElement("p");
       p.className = "free";
-      p.textContent = WEEK_OFF.text;
+      p.textContent = SETTIMANA_LIBERA.text;
       card.appendChild(p);
     } else {
       const ul = document.createElement("ul");
       ul.className = "chores";
-      jobs.forEach(job => {
+      compiti.forEach(compito => {
         const li = document.createElement("li");
-        if (job.emoji) li.appendChild(emojiEl(job.emoji));
+        if (compito.emoji) li.appendChild(emojiEl(compito.emoji));
         const nm = document.createElement("div");
         nm.className = "chore-name";
-        nm.textContent = job.name;
+        nm.textContent = compito.name;
         li.appendChild(nm);
-        if (job.detail) {
+        if (compito.detail) {
           const dt = document.createElement("div");
           dt.className = "chore-detail";
-          dt.textContent = job.detail;
+          dt.textContent = compito.detail;
           li.appendChild(dt);
         }
         ul.appendChild(li);
@@ -262,66 +287,81 @@ function render() {
     grid.appendChild(card);
   });
 
-  renderCycle(thisMonday);
+  renderRotazione(lunediCorrente);
 }
 
-function emojiEl(char) {
+function emojiEl(carattere) {
   const el = document.createElement("span");
   el.className = "emoji";
   el.setAttribute("role", "img");
   el.setAttribute("aria-hidden", "true");
-  el.textContent = char;
+  el.textContent = carattere;
   return el;
 }
 
-function renderCycle(thisMonday) {
-  const n = FLATMATES.length;
-  const table = document.getElementById("cycle-table");
-  table.innerHTML = "";
+function mcd(a, b) { return b ? mcd(b, a % b) : a; }
+function mcm(a, b) { return (a && b) ? a * b / mcd(a, b) : (a || b || 1); }
 
-  const head = table.insertRow();
-  head.appendChild(th("Week"));
-  CHORES.forEach(c => head.appendChild(th((c.emoji ? c.emoji + " " : "") + c.name)));
-  if (CHORES.length < n) head.appendChild(th(WEEK_OFF.text));
+// Quante settimane prima che tutto ricominci uguale.
+function lunghezzaCiclo() {
+  let n = 1;
+  BAGNI.forEach(b => { if (b.squadra.length) n = mcm(n, b.squadra.length); });
+  const liberi = COINQUILINI.length - BAGNI.length;
+  if (liberi > 0) n = mcm(n, liberi);
+  return Math.min(Math.max(n, 1), 24);
+}
 
-  for (let k = 0; k < n; k++) {
-    const monday = new Date(viewedMonday.getTime() + k * WEEK);
-    const row = table.insertRow();
-    if (monday.getTime() === thisMonday.getTime()) row.className = "now";
-    row.insertCell().textContent = formatRange(monday);
+function renderRotazione(lunediCorrente) {
+  const tabella = document.getElementById("cycle-table");
+  tabella.innerHTML = "";
 
-    const w = ((weekIndex(monday) % n) + n) % n;
-    const busy = new Set();
-    CHORES.forEach((_, c) => {
-      const p = (c + w) % n;
-      busy.add(p);
-      row.insertCell().textContent = FLATMATES[p];
+  const testa = tabella.insertRow();
+  testa.appendChild(th("Settimana"));
+  BAGNI.forEach(b => testa.appendChild(th((b.emoji ? b.emoji + " " : "") + b.name)));
+  ALTRE_FACCENDE.forEach(f => testa.appendChild(th((f.emoji ? f.emoji + " " : "") + f.name)));
+  testa.appendChild(th("Libero"));
+
+  const righe = lunghezzaCiclo();
+  for (let k = 0; k < righe; k++) {
+    const lunedi = new Date(lunediMostrato.getTime() + k * SETTIMANA);
+    const riga = tabella.insertRow();
+    if (lunedi.getTime() === lunediCorrente.getTime()) riga.className = "now";
+    riga.insertCell().textContent = formattaSettimana(lunedi);
+
+    const perPersona = assegnazioni(lunedi);
+    const tutte = BAGNI.concat(ALTRE_FACCENDE);
+    tutte.forEach(compito => {
+      const i = perPersona.findIndex(lista => lista.includes(compito));
+      riga.insertCell().textContent = i >= 0 ? COINQUILINI[i] : "—";
     });
-    if (CHORES.length < n) {
-      const cell = row.insertCell();
-      cell.className = "off";
-      cell.textContent = FLATMATES.filter((_, p) => !busy.has(p)).join(", ");
-    }
+
+    const cella = riga.insertCell();
+    cella.className = "off";
+    cella.textContent = COINQUILINI.filter((_, i) => perPersona[i].length === 0).join(", ") || "—";
   }
 }
 
-function th(text) {
+function th(testo) {
   const el = document.createElement("th");
-  el.textContent = text;
+  el.textContent = testo;
   return el;
 }
 
-function step(weeks) {
-  viewedMonday = new Date(viewedMonday.getTime() + weeks * WEEK);
+function vai(settimane) {
+  lunediMostrato = new Date(lunediMostrato.getTime() + settimane * SETTIMANA);
   render();
 }
 
-document.getElementById("prev").addEventListener("click", () => step(-1));
-document.getElementById("next").addEventListener("click", () => step(1));
+document.getElementById("prev").addEventListener("click", () => vai(-1));
+document.getElementById("next").addEventListener("click", () => vai(1));
 document.getElementById("today").addEventListener("click", () => {
-  viewedMonday = mondayOf(new Date());
+  lunediMostrato = lunediDi(new Date());
   render();
 });
+
+document.getElementById("footer-note").textContent =
+  "I turni sono calcolati dalla data, quindi tutti vedono la stessa cosa. " +
+  "Ogni bagno gira nella sua squadra: nessuno lo fa due settimane di fila.";
 
 render();
 </script>
