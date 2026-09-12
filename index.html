@@ -98,8 +98,6 @@
   tr.now td { background: var(--accent-soft); }
   td.off { color: var(--muted); font-style: italic; }
   .scroller { overflow-x: auto; }
-
-  footer { margin-top: 40px; color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -127,8 +125,6 @@
     <div class="scroller"><table id="cycle-table"></table></div>
   </details>
 
-  <footer id="footer-note"></footer>
-
 </div>
 
 <script>
@@ -136,36 +132,40 @@
    DA MODIFICARE QUI - al resto ci pensa la pagina da sola.
    ============================================================ */
 
-// I due bagni. Ogni bagno gira SOLO tra le persone della sua squadra,
-// una a settimana: con tre persone per squadra, ognuno fa il bagno
-// una settimana ogni tre e mai due settimane di fila.
-const BAGNI = [
+// Due squadre, ognuna con le sue faccende. Le faccende girano solo
+// dentro la squadra: tre persone e tre faccende, quindi ognuno le fa
+// tutte e tre nel giro di tre settimane e nessuno ripete la stessa
+// faccenda due settimane di fila.
+//
+// L'ordine di "persone" e quello di "faccende" insieme decidono chi fa
+// cosa nella settimana di partenza: la prima persona fa la prima
+// faccenda, la seconda la seconda, e così via.
+const SQUADRE = [
   {
-    emoji: "🚿",
-    name: "Bagno",
-    detail: "WC, doccia, lavandino, specchio",
-    squadra: ["Aran", "Ali", "Antonio"]
+    persone: ["Simone", "Salvatore", "Aurelio"],
+    faccende: [
+      { emoji: "🚽", name: "Bagno",      detail: "WC, doccia, lavandino, specchio" },
+      { emoji: "🍳", name: "Cucina 1",   detail: "Da lunedì a mercoledì" },
+      { emoji: "🗑️", name: "Spazzatura", detail: "2 volte a settimana" }
+    ]
   },
   {
-    emoji: "🚿",
-    name: "Bagno",
-    detail: "WC, doccia, lavandino, specchio",
-    squadra: ["Aurelio", "Salvatore", "Simone"]
+    persone: ["Antonio", "Aran", "Ali"],
+    faccende: [
+      { emoji: "🚽", name: "Bagno",     detail: "WC, doccia, lavandino, specchio" },
+      { emoji: "🍳", name: "Cucina 2",  detail: "Da giovedì a domenica" },
+      { emoji: "🧹", name: "Corridoio", detail: "Scopare e lavare, ingresso" }
+    ]
   }
 ];
 
-// Le altre faccende: girano tra chi in quella settimana non ha il bagno.
-const ALTRE_FACCENDE = [
-  { emoji: "🍳", name: "Cucina",     detail: "Piano cottura, lavello, superfici" },
-  { emoji: "🗑️", name: "Spazzatura", detail: "Portare fuori tutti i bidoni" },
-  { emoji: "🧹", name: "Corridoio",  detail: "Scopare e lavare, ingresso" }
-];
-
 // Cosa vede chi in quella settimana non ha niente da fare.
+// (Adesso non capita mai: sei persone e sei faccende.)
 const SETTIMANA_LIBERA = { emoji: "😎", text: "Settimana libera" };
 
-// Il lunedì da cui parte il conto: [anno, mese 1-12, giorno]
-const LUNEDI_DI_PARTENZA = [2026, 1, 5];
+// Il lunedì da cui parte il conto: [anno, mese 1-12, giorno].
+// Questa è la settimana 7-13 settembre 2026, quella del piano di partenza.
+const LUNEDI_DI_PARTENZA = [2026, 9, 7];
 
 /* ============================================================
    Da qui in giù non serve toccare niente.
@@ -176,8 +176,9 @@ const SETTIMANA = 7 * GIORNO;
 const LOCALE = "it-IT";
 const PALETTE = ["#3b6ef5", "#e0703a", "#2fa66b", "#a25fd0", "#d94f7a", "#0f9bb0", "#c9a227", "#5d6bd0"];
 
-// L'ordine delle schede: prima squadra, poi seconda.
-const COINQUILINI = BAGNI.flatMap(b => b.squadra);
+const COINQUILINI = SQUADRE.flatMap(s => s.persone);
+const TUTTE_LE_FACCENDE = SQUADRE.flatMap(s => s.faccende);
+const PUO_ESSERCI_LIBERO = TUTTE_LE_FACCENDE.length < COINQUILINI.length;
 
 const epoca = lunediDi(new Date(LUNEDI_DI_PARTENZA[0], LUNEDI_DI_PARTENZA[1] - 1, LUNEDI_DI_PARTENZA[2]));
 let lunediMostrato = lunediDi(new Date());
@@ -199,25 +200,17 @@ function numeroSettimana(lunedi) {
 function assegnazioni(lunedi) {
   const w = numeroSettimana(lunedi);
   const perPersona = COINQUILINI.map(() => []);
-  const occupati = new Set();
 
-  // Un bagno per squadra, a turno dentro la squadra.
-  BAGNI.forEach(bagno => {
-    const squadra = bagno.squadra;
-    if (!squadra.length) return;
-    const p = COINQUILINI.indexOf(squadra[mod(w, squadra.length)]);
-    if (p < 0) return;
-    perPersona[p].push(bagno);
-    occupati.add(p);
+  SQUADRE.forEach(squadra => {
+    const quanti = squadra.persone.length;
+    if (!quanti) return;
+    squadra.faccende.forEach((faccenda, j) => {
+      const nome = squadra.persone[mod(j + w, quanti)];
+      const i = COINQUILINI.indexOf(nome);
+      if (i >= 0) perPersona[i].push(faccenda);
+    });
   });
 
-  // Le altre faccende girano tra chi è rimasto libero.
-  const liberi = COINQUILINI.map((_, i) => i).filter(i => !occupati.has(i));
-  if (liberi.length) {
-    ALTRE_FACCENDE.forEach((faccenda, j) => {
-      perPersona[liberi[mod(j + w, liberi.length)]].push(faccenda);
-    });
-  }
   return perPersona;
 }
 
@@ -305,9 +298,7 @@ function mcm(a, b) { return (a && b) ? a * b / mcd(a, b) : (a || b || 1); }
 // Quante settimane prima che tutto ricominci uguale.
 function lunghezzaCiclo() {
   let n = 1;
-  BAGNI.forEach(b => { if (b.squadra.length) n = mcm(n, b.squadra.length); });
-  const liberi = COINQUILINI.length - BAGNI.length;
-  if (liberi > 0) n = mcm(n, liberi);
+  SQUADRE.forEach(s => { if (s.persone.length) n = mcm(n, s.persone.length); });
   return Math.min(Math.max(n, 1), 24);
 }
 
@@ -317,9 +308,8 @@ function renderRotazione(lunediCorrente) {
 
   const testa = tabella.insertRow();
   testa.appendChild(th("Settimana"));
-  BAGNI.forEach(b => testa.appendChild(th((b.emoji ? b.emoji + " " : "") + b.name)));
-  ALTRE_FACCENDE.forEach(f => testa.appendChild(th((f.emoji ? f.emoji + " " : "") + f.name)));
-  testa.appendChild(th("Libero"));
+  TUTTE_LE_FACCENDE.forEach(f => testa.appendChild(th((f.emoji ? f.emoji + " " : "") + f.name)));
+  if (PUO_ESSERCI_LIBERO) testa.appendChild(th("Libero"));
 
   const righe = lunghezzaCiclo();
   for (let k = 0; k < righe; k++) {
@@ -329,15 +319,16 @@ function renderRotazione(lunediCorrente) {
     riga.insertCell().textContent = formattaSettimana(lunedi);
 
     const perPersona = assegnazioni(lunedi);
-    const tutte = BAGNI.concat(ALTRE_FACCENDE);
-    tutte.forEach(compito => {
-      const i = perPersona.findIndex(lista => lista.includes(compito));
+    TUTTE_LE_FACCENDE.forEach(faccenda => {
+      const i = perPersona.findIndex(lista => lista.includes(faccenda));
       riga.insertCell().textContent = i >= 0 ? COINQUILINI[i] : "—";
     });
 
-    const cella = riga.insertCell();
-    cella.className = "off";
-    cella.textContent = COINQUILINI.filter((_, i) => perPersona[i].length === 0).join(", ") || "—";
+    if (PUO_ESSERCI_LIBERO) {
+      const cella = riga.insertCell();
+      cella.className = "off";
+      cella.textContent = COINQUILINI.filter((_, i) => perPersona[i].length === 0).join(", ") || "—";
+    }
   }
 }
 
@@ -358,10 +349,6 @@ document.getElementById("today").addEventListener("click", () => {
   lunediMostrato = lunediDi(new Date());
   render();
 });
-
-document.getElementById("footer-note").textContent =
-  "I turni sono calcolati dalla data, quindi tutti vedono la stessa cosa. " +
-  "Ogni bagno gira nella sua squadra: nessuno lo fa due settimane di fila.";
 
 render();
 </script>
