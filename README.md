@@ -11,7 +11,7 @@ Siamo in due squadre da tre, e ogni squadra ha tre faccende sue:
 
 | Squadra | Faccende |
 | --- | --- |
-| Simone, Salvatore, Aurelio | Bagno · Cucina 1 (lun–mer) · Spazzatura (2 volte/sett.) |
+| Simone, Vittorio, Aurelio | Bagno · Cucina 1 (lun–mer) · Spazzatura (2 volte/sett.) |
 | Antonio, Aran, Ali | Bagno · Cucina 2 (gio–dom) · Corridoio |
 
 Tre persone e tre faccende per squadra, quindi:
@@ -23,7 +23,7 @@ Tre persone e tre faccende per squadra, quindi:
 Il ciclo completo dura **3 settimane**, poi ricomincia uguale.
 
 La settimana di partenza è quella **7–13 settembre 2026**, con il piano che era
-già in casa: Simone bagno, Salvatore cucina 1, Aurelio spazzatura, Antonio
+già in casa: Simone bagno, Vittorio cucina 1, Aurelio spazzatura, Antonio
 bagno, Aran cucina 2, Ali corridoio. Dal 14 settembre in poi si sposta tutto di
 un posto a settimana.
 
@@ -34,7 +34,7 @@ Apri `index.html` e scendi fino al blocco **DA MODIFICARE QUI**, verso il fondo.
 ```js
 const SQUADRE = [
   {
-    persone: ["Simone", "Salvatore", "Aurelio"],
+    persone: ["Simone", "Vittorio", "Aurelio"],
     faccende: [
       { emoji: "🚽", name: "Bagno",      detail: "WC, doccia, lavandino, specchio" },
       { emoji: "🍳", name: "Cucina 1",   detail: "Da lunedì a mercoledì" },
